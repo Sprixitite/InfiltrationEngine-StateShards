@@ -179,12 +179,30 @@ local hookName = nil
 local StateShards = {}
 
 local SHARD_ITEM_PATTERN = "%[([%a_][%w_]+)%]"
+local SHARD_GOTO_PATTERN = "GOTO[ \t]+" .. SHARD_ITEM_PATTERN
+local SHARD_GOTO_PATTERN2 = "goto[ \t]+" .. SHARD_ITEM_PATTERN
 local SHARD_LABEL_PATTERN = ':' .. SHARD_ITEM_PATTERN
 local SHARD_LOCAL_PATTERN = '#' .. SHARD_ITEM_PATTERN
 
 local function expandShard(shard, as)
-	local localsExpanded = string.gsub(
+	local gotosExpanded = string.gsub(
 		shard,
+		SHARD_GOTO_PATTERN,
+		function(s)
+			local gotoName = (as == nil) and s or as
+			return "GOTO " .. gotoName
+		end
+	)
+	gotosExpanded = string.gsub(
+		gotosExpanded,
+		SHARD_GOTO_PATTERN2,
+		function(s)
+			local gotoName = (as == nil) and s or as
+			return "goto " .. gotoName
+		end
+	)
+	local localsExpanded = string.gsub(
+		gotosExpanded,
 		SHARD_LOCAL_PATTERN,
 		function(s)
 			local localName = (as == nil) and s or as
@@ -230,6 +248,7 @@ local function isStateComponentScript(pTarget)
 		return false, "Type attribute is of non-string datatype"
 	end
 	local isStateScript = targetType == "StateScript"
+	if not isStateScript then return false end
 	local stateScriptValid = type(pTarget:GetAttribute("ScriptSource")) == "string"
 	return (isStateScript and stateScriptValid), (not stateScriptValid) and "ScriptSource attribute is of non-string datatype" or nil
 end
@@ -277,6 +296,11 @@ function StateShards.OnPreSerialize(callbackState, invokeState, mission: Folder)
 	local stateComponents = mission:FindFirstChild("StateComponents")
 	if stateComponents then
 		StateShards.RunPreprocessor(shards, stateComponents, isStateComponentScript)
+	end
+	
+	local stateComponentTemplates = mission:FindFirstChild("StateComponentTemplates")
+	if stateComponentTemplates then
+		StateShards.RunPreprocessor(shards, stateComponentTemplates, isStateComponentScript)
 	end
 	
 	local props = mission:FindFirstChild("Props")
